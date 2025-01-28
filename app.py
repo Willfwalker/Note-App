@@ -14,35 +14,23 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 # Load environment variables
 load_dotenv()
 
-# Initialize Firebase only once
-firebase_app = None
-db = None
-
-def initialize_firebase():
-    global firebase_app, db
-    if not firebase_app:
-        try:
-            firebase_credentials_json = os.getenv('FIREBASE_CREDENTIALS')
-            if not firebase_credentials_json:
-                raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
-            
-            cred_dict = json.loads(firebase_credentials_json)
-            if 'private_key' in cred_dict:
-                cred_dict['private_key'] = cred_dict['private_key'].replace('\\n', '\n')
-            
-            cred = credentials.Certificate(cred_dict)
-            firebase_app = firebase_admin.initialize_app(cred)
-            db = firestore.client()
-            print("Firebase initialized successfully")
-        except Exception as e:
-            print(f"Firebase initialization error: {str(e)}")
-            raise
-    return db
-
-# Initialize Firebase on first request
-@app.before_first_request
-def before_first_request():
-    initialize_firebase()
+# Initialize Firebase immediately
+try:
+    firebase_credentials_json = os.getenv('FIREBASE_CREDENTIALS')
+    if not firebase_credentials_json:
+        raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+    
+    cred_dict = json.loads(firebase_credentials_json)
+    if 'private_key' in cred_dict:
+        cred_dict['private_key'] = cred_dict['private_key'].replace('\\n', '\n')
+    
+    cred = credentials.Certificate(cred_dict)
+    firebase_app = firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Firebase initialized successfully")
+except Exception as e:
+    print(f"Firebase initialization error: {str(e)}")
+    raise
 
 # Login required decorator
 def login_required(f):
@@ -117,3 +105,11 @@ def toggle_task(task_id):
 def delete_task(task_id):
     db.collection('tasks').document(task_id).delete()
     return redirect(url_for('index'))
+
+@app.errorhandler(Exception)
+def handle_error(error):
+    print(f"Error occurred: {str(error)}")
+    return jsonify({
+        'success': False,
+        'error': str(error)
+    }), 500
