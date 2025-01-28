@@ -43,16 +43,40 @@ def login_required(f):
 
 @app.route('/login')
 def login():
-    return render_template('login.html')
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    
+    firebase_config = {
+        'apiKey': os.getenv('FIREBASE_WEB_API_KEY'),
+        'authDomain': os.getenv('FIREBASE_AUTH_DOMAIN'),
+        'projectId': os.getenv('FIREBASE_PROJECT_ID'),
+        'storageBucket': os.getenv('FIREBASE_STORAGE_BUCKET'),
+        'messagingSenderId': os.getenv('FIREBASE_MESSAGING_SENDER_ID'),
+        'appId': os.getenv('FIREBASE_APP_ID')
+    }
+    
+    # Add this debug print
+    print("Firebase Config being sent to template:", {
+        **firebase_config,
+        'apiKey': firebase_config['apiKey'][:10] + '...' if firebase_config['apiKey'] else None
+    })
+    
+    return render_template('login.html', firebase_config=firebase_config)
 
 @app.route('/verify_token', methods=['POST'])
 def verify_token():
     try:
-        id_token = request.json['idToken']
-        decoded_token = auth.verify_id_token(id_token)
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'Missing JSON data'}), 400
+        
+        id_token = request.json.get('idToken')
+        if not id_token:
+            return jsonify({'success': False, 'error': 'Missing ID token'}), 400
+        
+        decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=5)
         user_id = decoded_token['uid']
         session['user_id'] = user_id
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'redirect': url_for('index')})
     except Exception as e:
         print(f"Token verification error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 401
@@ -65,14 +89,43 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    user_id = session['user_id']
-    tasks_ref = db.collection('tasks').where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING)
-    tasks = []
-    for doc in tasks_ref.stream():
-        task = doc.to_dict()
-        task['id'] = doc.id
-        tasks.append(task)
-    return render_template('index.html', tasks=tasks)
+    try:
+        user_id = session['user_id']
+        print(f"Fetching tasks for user: {user_id}")
+        
+        # Get tasks reference
+        tasks_ref = db.collection('tasks').where('user_id', '==', user_id)
+        
+        try:
+            # Try with ordering
+            tasks = []
+            for doc in tasks_ref.order_by('created_at', direction=firestore.Query.DESCENDING).stream():
+                task = doc.to_dict()
+                task['id'] = doc.id
+                tasks.append(task)
+            print(f"Successfully fetched {len(tasks)} tasks")
+            
+        except Exception as order_error:
+            print(f"Error with ordered query: {str(order_error)}")
+            print("Falling back to unordered query")
+            
+            # Fallback: fetch without ordering if index doesn't exist
+            tasks = []
+            for doc in tasks_ref.stream():
+                task = doc.to_dict()
+                task['id'] = doc.id
+                tasks.append(task)
+            
+            # Sort in memory as a temporary solution
+            tasks.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+            print(f"Successfully fetched {len(tasks)} tasks (unordered)")
+        
+        return render_template('index.html', tasks=tasks)
+        
+    except Exception as e:
+        print(f"Error in index route: {str(e)}")
+        # Return a more user-friendly error page
+        return render_template('index.html', tasks=[], error="Unable to fetch tasks. Please try again later.")
 
 @app.route('/add_task', methods=['POST'])
 @login_required
@@ -113,3 +166,6 @@ def handle_error(error):
         'success': False,
         'error': str(error)
     }), 500
+
+if __name__ == '__main__':
+    app.run(debug=True) 
