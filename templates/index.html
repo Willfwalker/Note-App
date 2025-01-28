@@ -6,63 +6,209 @@
     <title>Todo List</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-900">
     <div class="container mx-auto p-4 max-w-2xl">
-        <h1 class="text-3xl font-bold mb-6">Todo List</h1>
+        <h1 class="text-3xl font-bold mb-6 text-white">Notes</h1>
         
-        <!-- Add Task Form -->
-        <form action="{{ url_for('add_task') }}" method="POST" class="mb-8 bg-white p-4 rounded shadow">
-            <div class="flex flex-col space-y-4">
-                <input type="text" 
-                       name="title" 
-                       placeholder="Task title" 
-                       required 
-                       class="border p-2 rounded">
-                <input type="text" 
-                       name="description" 
-                       placeholder="Description" 
-                       class="border p-2 rounded">
-                <button type="submit" 
-                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                    Add Task
-                </button>
-            </div>
-        </form>
+        <!-- Search Bar -->
+        <div class="mb-8">
+            <input type="text" 
+                   placeholder="Search your notes" 
+                   class="w-full bg-gray-800 text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
 
-        <!-- Task List -->
-        <div class="space-y-4">
-            {% for task in tasks %}
-            <div class="bg-white p-4 rounded shadow flex items-center justify-between">
-                <div class="flex items-center space-x-4">
+        <!-- Task Card -->
+        <div class="bg-blue-600 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Tasks</h2>
+            <div class="space-y-4">
+                {% for task in tasks %}
+                <div class="flex items-center space-x-3">
                     <form action="{{ url_for('toggle_task', task_id=task.id) }}" method="POST" class="inline">
                         <button type="submit" class="flex items-center">
-                            <div class="w-6 h-6 border-2 rounded flex items-center justify-center {{ 'bg-green-500 border-green-500' if task.completed else 'border-gray-400' }}">
+                            <div class="w-6 h-6 border-2 border-white rounded-full flex items-center justify-center {{ 'bg-white' if task.completed }}">
                                 {% if task.completed %}
-                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
                                 {% endif %}
                             </div>
                         </button>
                     </form>
-                    <div>
-                        <h3 class="font-medium {{ 'line-through text-gray-400' if task.completed }}">
-                            {{ task.title }}
-                        </h3>
-                        {% if task.description %}
-                        <p class="text-gray-600 text-sm">{{ task.description }}</p>
-                        {% endif %}
-                    </div>
+                    <span class="text-white {{ 'line-through' if task.completed }}">{{ task.title }}</span>
                 </div>
-                <form action="{{ url_for('delete_task', task_id=task.id) }}" method="POST" class="inline">
-                    <button type="submit" 
-                            class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
-                        Delete
-                    </button>
+                {% endfor %}
+            </div>
+            <div class="text-sm text-blue-200 mt-4">Todo · Jan. 8</div>
+        </div>
+
+        <!-- Floating Action Button and Circular Menu -->
+        <div class="fixed bottom-6 right-6">
+            <!-- Circular Menu Items -->
+            <div id="menuItems" class="absolute bottom-0 right-0">
+                <button onclick="showForm('task')" 
+                        class="menu-item absolute bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 focus:outline-none transform transition-all duration-300 scale-0">
+                    <span class="whitespace-nowrap absolute right-14 top-1/2 -translate-y-1/2">Task</span>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                </button>
+                <button onclick="showForm('note')" 
+                        class="menu-item absolute bg-orange-500 text-white p-3 rounded-full shadow-lg hover:bg-orange-600 focus:outline-none transform transition-all duration-300 scale-0">
+                    <span class="whitespace-nowrap absolute right-14 top-1/2 -translate-y-1/2">Note</span>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Plus Button -->
+            <button id="menuButton" onclick="toggleMenu()" 
+                    class="bg-blue-500 text-white p-4 rounded-full shadow-lg hover:bg-blue-600 focus:outline-none transform transition-transform duration-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Task Form Modal -->
+        <div id="taskForm" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div class="bg-gray-800 p-6 rounded-lg w-96">
+                <h3 class="text-xl font-bold text-white mb-4">New Task</h3>
+                <form action="{{ url_for('add_task') }}" method="POST">
+                    <input type="text" 
+                           name="title" 
+                           placeholder="Task title" 
+                           class="w-full bg-gray-700 text-white p-3 rounded-lg mb-4">
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeTaskForm()" 
+                                class="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" 
+                                class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                            Add Task
+                        </button>
+                    </div>
                 </form>
             </div>
-            {% endfor %}
+        </div>
+
+        <!-- Note Form Modal -->
+        <div id="noteForm" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div class="bg-gray-800 p-6 rounded-lg w-96">
+                <h3 class="text-xl font-bold text-white mb-4">New Note</h3>
+                <form action="{{ url_for('add_note') }}" method="POST">
+                    <input type="text" 
+                           name="title" 
+                           placeholder="Note title" 
+                           class="w-full bg-gray-700 text-white p-3 rounded-lg mb-4">
+                    <textarea name="content" 
+                              placeholder="Note content" 
+                              class="w-full bg-gray-700 text-white p-3 rounded-lg mb-4 h-32"></textarea>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeNoteForm()" 
+                                class="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" 
+                                class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600">
+                            Add Note
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
+
+    <style>
+        .menu-item {
+            opacity: 0;
+            visibility: hidden;
+            z-index: 40;
+        }
+        
+        .menu-item span {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            transform: rotate(90deg);
+            transform-origin: 0 50%;
+            right: -20px !important;
+            top: 50% !important;
+        }
+        
+        .menu-item:hover span {
+            opacity: 1;
+        }
+        
+        .menu-item svg {
+            transform: rotate(-90deg);
+        }
+        
+        .menu-open .menu-item {
+            opacity: 1;
+            visibility: visible;
+            transform: scale(1);
+        }
+        
+        .menu-open .menu-item:nth-child(1) {
+            transform: translateX(-80px);
+        }
+        
+        .menu-open .menu-item:nth-child(2) {
+            transform: translateX(-160px);
+        }
+        
+        #menuButton.menu-open {
+            transform: rotate(45deg);
+        }
+    </style>
+
+    <script>
+        let menuVisible = false;
+
+        function toggleMenu() {
+            const menuItems = document.getElementById('menuItems');
+            const menuButton = document.getElementById('menuButton');
+            menuVisible = !menuVisible;
+            
+            if (menuVisible) {
+                menuItems.classList.add('menu-open');
+                menuButton.classList.add('menu-open');
+            } else {
+                menuItems.classList.remove('menu-open');
+                menuButton.classList.remove('menu-open');
+            }
+        }
+
+        function showForm(type) {
+            toggleMenu(); // Hide the menu
+            if (type === 'task') {
+                document.getElementById('taskForm').classList.remove('hidden');
+            } else {
+                document.getElementById('noteForm').classList.remove('hidden');
+            }
+        }
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('menuItems');
+            const menuButton = document.getElementById('menuButton');
+            const isMenuClick = event.target.closest('#menuItems') || event.target.closest('#menuButton');
+            
+            if (!isMenuClick && menuVisible) {
+                menu.classList.remove('menu-open');
+                menuButton.classList.remove('menu-open');
+                menuVisible = false;
+            }
+        });
+
+        function closeTaskForm() {
+            document.getElementById('taskForm').classList.add('hidden');
+        }
+
+        function closeNoteForm() {
+            document.getElementById('noteForm').classList.add('hidden');
+        }
+    </script>
 </body>
 </html> 

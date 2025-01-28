@@ -93,17 +93,29 @@ def index():
         user_id = session['user_id']
         print(f"Fetching tasks for user: {user_id}")
         
-        # Get tasks reference
+        # Get tasks reference and notes reference
         tasks_ref = db.collection('tasks').where('user_id', '==', user_id)
+        notes_ref = db.collection('notes').where('user_id', '==', user_id)
         
         try:
-            # Try with ordering
+            # Fetch tasks with ordering
             tasks = []
             for doc in tasks_ref.order_by('created_at', direction=firestore.Query.DESCENDING).stream():
                 task = doc.to_dict()
                 task['id'] = doc.id
+                # Format the date
+                if 'created_at' in task:
+                    task['formatted_date'] = task['created_at'].strftime('%b. %-d')
                 tasks.append(task)
-            print(f"Successfully fetched {len(tasks)} tasks")
+            
+            # Fetch notes
+            notes = []
+            for doc in notes_ref.order_by('created_at', direction=firestore.Query.DESCENDING).stream():
+                note = doc.to_dict()
+                note['id'] = doc.id
+                if 'created_at' in note:
+                    note['formatted_date'] = note['created_at'].strftime('%b. %-d')
+                notes.append(note)
             
         except Exception as order_error:
             print(f"Error with ordered query: {str(order_error)}")
@@ -119,30 +131,53 @@ def index():
             # Sort in memory as a temporary solution
             tasks.sort(key=lambda x: x.get('created_at', 0), reverse=True)
             print(f"Successfully fetched {len(tasks)} tasks (unordered)")
+            
+            # Fallback handling for notes
+            notes = []
+            for doc in notes_ref.stream():
+                note = doc.to_dict()
+                note['id'] = doc.id
+                notes.append(note)
+            
+            # Sort in memory as a temporary solution
+            notes.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+            print(f"Successfully fetched {len(notes)} notes (unordered)")
         
-        return render_template('index.html', tasks=tasks)
+        return render_template('index.html', tasks=tasks, notes=notes)
         
     except Exception as e:
         print(f"Error in index route: {str(e)}")
-        # Return a more user-friendly error page
-        return render_template('index.html', tasks=[], error="Unable to fetch tasks. Please try again later.")
+        return render_template('index.html', tasks=[], notes=[], error="Unable to fetch data. Please try again later.")
 
 @app.route('/add_task', methods=['POST'])
 @login_required
 def add_task():
     user_id = session['user_id']
-    title = request.form.get('title')
-    description = request.form.get('description')
+    title = request.form.get('title', 'New Task')
     
-    if title:
-        task = {
-            'title': title,
-            'description': description,
-            'completed': False,
-            'created_at': datetime.now(),
-            'user_id': user_id
-        }
-        db.collection('tasks').add(task)
+    task = {
+        'title': title,
+        'completed': False,
+        'created_at': datetime.now(),
+        'user_id': user_id
+    }
+    db.collection('tasks').add(task)
+    return redirect(url_for('index'))
+
+@app.route('/add_note', methods=['POST'])
+@login_required
+def add_note():
+    user_id = session['user_id']
+    title = request.form.get('title', 'New Note')
+    content = request.form.get('content', '')
+    
+    note = {
+        'title': title,
+        'content': content,
+        'created_at': datetime.now(),
+        'user_id': user_id
+    }
+    db.collection('notes').add(note)
     return redirect(url_for('index'))
 
 @app.route('/toggle_task/<task_id>', methods=['POST'])
@@ -158,6 +193,40 @@ def toggle_task(task_id):
 def delete_task(task_id):
     db.collection('tasks').document(task_id).delete()
     return redirect(url_for('index'))
+
+@app.route('/search', methods=['GET'])
+@login_required
+def search():
+    query = request.args.get('q', '').lower()
+    user_id = session['user_id']
+    
+    try:
+        # Get all tasks and notes for the user
+        tasks_ref = db.collection('tasks').where('user_id', '==', user_id).stream()
+        notes_ref = db.collection('notes').where('user_id', '==', user_id).stream()
+        
+        # Filter tasks and notes based on search query
+        tasks = []
+        for doc in tasks_ref:
+            task = doc.to_dict()
+            if query in task.get('title', '').lower():
+                task['id'] = doc.id
+                tasks.append(task)
+        
+        notes = []
+        for doc in notes_ref:
+            note = doc.to_dict()
+            if query in note.get('title', '').lower() or query in note.get('content', '').lower():
+                note['id'] = doc.id
+                notes.append(note)
+        
+        return jsonify({
+            'tasks': tasks,
+            'notes': notes
+        })
+    except Exception as e:
+        print(f"Search error: {str(e)}")
+        return jsonify({'error': 'Search failed'}), 500
 
 @app.errorhandler(Exception)
 def handle_error(error):
