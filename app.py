@@ -7,23 +7,36 @@ import os
 from dotenv import load_dotenv
 from functools import wraps
 
+# Initialize Flask app without static files
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 
+# Load environment variables
 load_dotenv()
 
+# Initialize Firebase only once
+firebase_app = None
+db = None
 
-# Initialize Firebase Admin using environment variable
-firebase_credentials_json = os.getenv('FIREBASE_CREDENTIALS')
-if firebase_credentials_json:
-    cred_dict = json.loads(firebase_credentials_json)
-    if 'private_key' in cred_dict:
-        cred_dict['private_key'] = cred_dict['private_key'].replace('\\n', '\n')
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-else:
-    raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+def initialize_firebase():
+    global firebase_app, db
+    if not firebase_app:
+        firebase_credentials_json = os.getenv('FIREBASE_CREDENTIALS')
+        if firebase_credentials_json:
+            cred_dict = json.loads(firebase_credentials_json)
+            if 'private_key' in cred_dict:
+                cred_dict['private_key'] = cred_dict['private_key'].replace('\\n', '\n')
+            cred = credentials.Certificate(cred_dict)
+            firebase_app = firebase_admin.initialize_app(cred)
+            db = firestore.client()
+        else:
+            raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+    return db
+
+# Initialize Firebase on first request
+@app.before_first_request
+def before_first_request():
+    initialize_firebase()
 
 # Login required decorator
 def login_required(f):
@@ -97,6 +110,3 @@ def toggle_task(task_id):
 def delete_task(task_id):
     db.collection('tasks').document(task_id).delete()
     return redirect(url_for('index'))
-
-if __name__ == '__main__':
-    app.run(debug=True) 
