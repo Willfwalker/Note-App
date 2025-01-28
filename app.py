@@ -21,16 +21,22 @@ db = None
 def initialize_firebase():
     global firebase_app, db
     if not firebase_app:
-        firebase_credentials_json = os.getenv('FIREBASE_CREDENTIALS')
-        if firebase_credentials_json:
+        try:
+            firebase_credentials_json = os.getenv('FIREBASE_CREDENTIALS')
+            if not firebase_credentials_json:
+                raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+            
             cred_dict = json.loads(firebase_credentials_json)
             if 'private_key' in cred_dict:
                 cred_dict['private_key'] = cred_dict['private_key'].replace('\\n', '\n')
+            
             cred = credentials.Certificate(cred_dict)
             firebase_app = firebase_admin.initialize_app(cred)
             db = firestore.client()
-        else:
-            raise ValueError("FIREBASE_CREDENTIALS environment variable not set")
+            print("Firebase initialized successfully")
+        except Exception as e:
+            print(f"Firebase initialization error: {str(e)}")
+            raise
     return db
 
 # Initialize Firebase on first request
@@ -53,14 +59,15 @@ def login():
 
 @app.route('/verify_token', methods=['POST'])
 def verify_token():
-    id_token = request.json['idToken']
     try:
+        id_token = request.json['idToken']
         decoded_token = auth.verify_id_token(id_token)
         user_id = decoded_token['uid']
         session['user_id'] = user_id
         return jsonify({'success': True})
-    except:
-        return jsonify({'success': False}), 401
+    except Exception as e:
+        print(f"Token verification error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 401
 
 @app.route('/logout')
 def logout():
